@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Huffman Web Compressor</title>
+<meta name="description" content="Compresión de texto con el algoritmo voraz de Huffman y árbol de expansión mínima (Kruskal y Prim).">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23e8590c'/><path d='M16 7v6M16 13l-6 6M16 13l6 6M10 19l-3 6M10 19l3 6' stroke='white' stroke-width='2.4' stroke-linecap='round' fill='none'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="d3.min.js" defer></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 32 32"><path d="M16 6v6M16 12l-7 7M16 12l7 7M9 19l-3 7M9 19l3 7" /></svg>
+    </div>
+    <div>
+      <h1>Huffman Web Compressor</h1>
+      <p class="sub">Técnica voraz · compresión sin pérdida · árbol de expansión mínima</p>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="comprimir" role="tab">Comprimir</button>
+    <button class="tab" data-tab="descomprimir" role="tab">Descomprimir</button>
+    <button class="tab" data-tab="mst" role="tab">Expansión mínima</button>
+    <button class="tab" data-tab="teoria" role="tab">Cómo funciona</button>
+  </nav>
+  <button id="tema" class="icon-btn" title="Cambiar tema" aria-label="Cambiar tema">◐</button>
+</header>
+
+<main>
+<!-- ======================= COMPRIMIR ======================= -->
+<section id="panel-comprimir" class="panel active">
+  <div class="card entrada">
+    <label id="drop" class="drop" for="archivo">
+      <input id="archivo" type="file" accept=".txt,text/plain" hidden>
+      <div class="drop-icon">⇪</div>
+      <div><strong>Arrastra aquí un libro .txt</strong> o haz clic para elegirlo</div>
+      <div class="muted small">Descárgalo en formato <em>Plain Text UTF-8</em> desde
+        <a href="https://www.gutenberg.org/" target="_blank" rel="noopener">Project Gutenberg</a> · máx. 4.4 MB</div>
+    </label>
+    <details class="pegar">
+      <summary>…o pega un texto</summary>
+      <textarea id="texto" rows="5" placeholder="Escribe o pega aquí cualquier texto">abracadabra, la cabra abre la barra</textarea>
+      <button id="btn-texto" class="btn">Comprimir texto</button>
+    </details>
+    <div id="estado" class="estado" hidden></div>
+  </div>
+
+  <div id="resultados" hidden>
+    <div class="resumen-titulo">
+      <h2 id="r-nombre"></h2>
+      <div class="acciones">
+        <button id="btn-descargar-huf" class="btn primary">⬇ Descargar .huf</button>
+        <button id="btn-roundtrip" class="btn">Decodificar el .huf</button>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><span class="k-label">Archivo original</span><span class="k-val" id="k-orig"></span><span class="k-sub" id="k-orig-sub"></span></div>
+      <div class="kpi"><span class="k-label">Archivo .huf</span><span class="k-val" id="k-huf"></span><span class="k-sub" id="k-huf-sub"></span></div>
+      <div class="kpi accent"><span class="k-label">Ahorro de espacio</span><span class="k-val" id="k-ahorro"></span><span class="k-sub" id="k-razon"></span></div>
+      <div class="kpi"><span class="k-label">Bits por carácter</span><span class="k-val" id="k-bpc"></span><span class="k-sub" id="k-entropia"></span></div>
+      <div class="kpi"><span class="k-label">Símbolos distintos</span><span class="k-val" id="k-simb"></span><span class="k-sub" id="k-altura"></span></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h3>Comparación de tamaños</h3>
+        <div id="barras-tam" class="barras"></div>
+        <p class="nota" id="nota-tam"></p>
+      </div>
+      <div class="card">
+        <h3>Frecuencia de los 30 caracteres más usados</h3>
+        <div id="graf-freq" class="graf-freq"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h3>Árbol de Huffman</h3>
+        <div class="controles">
+          <span class="muted small">Rueda = zoom · arrastrar = mover · clic en nodo = plegar</span>
+          <button id="arbol-ajustar" class="btn sm">Ajustar</button>
+          <button id="arbol-expandir" class="btn sm">Expandir todo</button>
+        </div>
+      </div>
+      <div id="arbol" class="arbol"></div>
+      <div class="leyenda"><span><i class="dot hoja"></i>hoja: carácter</span><span><i class="dot interno"></i>nodo interno: suma de frecuencias</span><span>rama izquierda = <code>0</code>, derecha = <code>1</code></span></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="card-head">
+          <h3>Tabla de frecuencias y códigos</h3>
+          <input id="filtro" class="buscar" placeholder="Buscar carácter o código…">
+        </div>
+        <div class="tabla-wrap">
+          <table id="tabla">
+            <thead><tr><th>Car.</th><th>Frecuencia</th><th>Prob.</th><th>Código Huffman</th><th>Long.</th><th>Bits</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Pasos voraces <span class="muted small" id="n-pasos"></span></h3>
+        <p class="muted small">En cada paso se extraen los <strong>dos nodos de menor frecuencia</strong> de la cola de prioridad y se fusionan en un nodo padre.</p>
+        <div class="tabla-wrap">
+          <table id="pasos">
+            <thead><tr><th>#</th><th>Mín. 1</th><th>Mín. 2</th><th>Nuevo nodo</th><th>En cola</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Codificación</h3>
+      <p class="muted small">Primeros caracteres del archivo y el código que reemplaza a cada uno:</p>
+      <div id="chips" class="chips"></div>
+      <p class="muted small">Primeros 1024 bits del flujo comprimido:</p>
+      <pre id="bits" class="bits"></pre>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h3>Decodificación</h3>
+        <span id="verif" class="pill"></span>
+      </div>
+      <div class="grid2 tight">
+        <div><h4>Texto original</h4><pre id="orig-prev" class="prev"></pre></div>
+        <div><h4>Texto decodificado del .huf</h4><pre id="dec-prev" class="prev"></pre></div>
+      </div>
+      <p class="muted small" id="tiempos"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= DESCOMPRIMIR ======================= -->
+<section id="panel-descomprimir" class="panel">
+  <div class="card entrada">
+    <label id="drop-huf" class="drop" for="archivo-huf">
+      <input id="archivo-huf" type="file" accept=".huf" hidden>
+      <div class="drop-icon">⇩</div>
+      <div><strong>Arrastra aquí un archivo .huf</strong> o haz clic para elegirlo</div>
+      <div class="muted small">El árbol se reconstruye a partir de la tabla de frecuencias guardada en la cabecera.</div>
+    </label>
+    <div id="estado-huf" class="estado" hidden></div>
+  </div>
+  <div id="res-huf" hidden>
+    <div class="resumen-titulo">
+      <h2 id="h-nombre"></h2>
+      <button id="btn-descargar-txt" class="btn primary">⬇ Descargar .txt</button>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><span class="k-label">Archivo .huf</span><span class="k-val" id="h-huf"></span></div>
+      <div class="kpi"><span class="k-label">Texto recuperado</span><span class="k-val" id="h-txt"></span></div>
+      <div class="kpi"><span class="k-label">Caracteres</span><span class="k-val" id="h-chars"></span></div>
+      <div class="kpi"><span class="k-label">Tiempo de decodificación</span><span class="k-val" id="h-t"></span></div>
+    </div>
+    <div class="card"><h3>Vista previa</h3><pre id="h-prev" class="prev alto"></pre></div>
+  </div>
+</section>
+
+<!-- ======================= MST ======================= -->
+<section id="panel-mst" class="panel">
+  <div class="grid-mst">
+    <div class="card">
+      <h3>Grafo</h3>
+      <div class="campo"><label>Vértices</label><input id="m-n" type="number" min="3" max="20" value="9"></div>
+      <div class="campo"><label>Semilla</label><input id="m-semilla" type="number" value="7"></div>
+      <button id="m-generar" class="btn primary full">Generar grafo aleatorio</button>
+      <details class="pegar">
+        <summary>…o escribe las aristas</summary>
+        <textarea id="m-texto" rows="8" spellcheck="false">A B 4
+A H 8
+B C 8
+B H 11
+C D 7
+C F 4
+C I 2
+D E 9
+D F 14
+E F 10
+F G 2
+G H 1
+G I 6
+H I 7</textarea>
+        <button id="m-manual" class="btn full">Usar estas aristas</button>
+      </details>
+      <hr>
+      <div class="campo"><label>Algoritmo</label>
+        <select id="m-alg"><option value="kruskal">Kruskal</option><option value="prim">Prim</option></select>
+      </div>
+      <div class="pasos-ctl">
+        <button id="m-inicio" class="btn sm" title="Reiniciar">⏮</button>
+        <button id="m-prev" class="btn sm" title="Paso anterior">◀</button>
+        <button id="m-play" class="btn sm primary" title="Reproducir">▶</button>
+        <button id="m-next" class="btn sm" title="Paso siguiente">▶|</button>
+        <button id="m-fin" class="btn sm" title="Final">⏭</button>
+      </div>
+      <div id="m-contador" class="muted small center"></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <h3>Árbol de expansión mínima</h3>
+        <div class="leyenda"><span><i class="ln mst"></i>en el árbol</span><span><i class="ln rech"></i>rechazada</span><span><i class="ln act"></i>evaluando</span></div>
+      </div>
+      <svg id="m-svg" viewBox="0 0 600 400" class="m-svg"></svg>
+      <div class="kpis mini">
+        <div class="kpi"><span class="k-label">Peso Kruskal</span><span class="k-val" id="m-pk"></span></div>
+        <div class="kpi"><span class="k-label">Peso Prim</span><span class="k-val" id="m-pp"></span></div>
+        <div class="kpi"><span class="k-label">Aristas del grafo</span><span class="k-val" id="m-e"></span></div>
+        <div class="kpi"><span class="k-label">Aristas del MST</span><span class="k-val" id="m-em"></span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Bitácora</h3>
+      <ol id="m-log" class="log"></ol>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= TEORÍA ======================= -->
+<section id="panel-teoria" class="panel">
+  <div class="card prosa">
+    <h2>Algoritmo de Huffman</h2>
+    <p>Huffman (1952) construye un <strong>código prefijo óptimo</strong>: ningún código es prefijo de otro, así que el flujo de bits se decodifica sin separadores. Los caracteres frecuentes reciben códigos cortos y los raros, códigos largos.</p>
+    <h3>La elección voraz</h3>
+    <ol>
+      <li>Se crea una hoja por carácter, con su frecuencia, y se insertan en una cola de prioridad (min-heap).</li>
+      <li>Mientras quede más de un nodo: se extraen los <strong>dos de menor frecuencia</strong>, se unen bajo un padre con la suma de ambas y el padre vuelve a la cola.</li>
+      <li>El nodo que queda es la raíz. Recorriéndola, izquierda = <code>0</code> y derecha = <code>1</code>, se obtienen los códigos.</li>
+    </ol>
+    <p>La decisión local (unir siempre los dos menos frecuentes) lleva al óptimo global: minimiza la longitud media <code>L = Σ pᵢ·ℓᵢ</code>, que queda acotada por la entropía de Shannon <code>H ≤ L &lt; H + 1</code>.</p>
+    <p><strong>Complejidad:</strong> contar frecuencias es O(N) sobre el texto; construir el árbol, O(n log n) con n símbolos distintos; codificar y decodificar, O(N).</p>
+    <h3>Formato del archivo .huf</h3>
+    <p>Firma <code>HUF1</code> · codificación del texto · tabla de frecuencias (carácter + frecuencia) · número de bits válidos · bits empaquetados en bytes. El decodificador reconstruye el mismo árbol a partir de la tabla, por eso el tamaño de la cabecera se cuenta dentro del tamaño comprimido.</p>
+    <h2>Árbol de expansión mínima</h2>
+    <p>Dado un grafo conexo con pesos, el MST es el subconjunto de aristas que conecta todos los vértices sin ciclos y con peso total mínimo. Ambos algoritmos son voraces, como Huffman:</p>
+    <ul>
+      <li><strong>Kruskal</strong>: ordena las aristas por peso y toma la más ligera que no forme ciclo (Union-Find). O(E log E).</li>
+      <li><strong>Prim</strong>: crece un árbol desde un vértice y toma siempre la arista más ligera hacia un vértice nuevo (cola de prioridad). O(E log V).</li>
+    </ul>
+  </div>
+</section>
+</main>
+
+<footer class="pie">Análisis de Algoritmos · Técnica voraz · <a href="https://github.com/MrDeveloper25/Huffman-Web-Compressor" target="_blank" rel="noopener">Código en GitHub</a></footer>
+</body>
+</html>
