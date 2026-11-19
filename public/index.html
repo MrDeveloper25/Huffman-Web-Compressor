@@ -37,6 +37,25 @@
 <!-- ======================= COMPRIMIR ======================= -->
 <section id="panel-comprimir" class="panel active">
   <div class="card entrada">
+    <div class="buscador">
+      <h3>Buscar un libro en Project Gutenberg</h3>
+      <div class="buscador-fila">
+        <input id="g-q" class="buscar" placeholder="Título o autor (ej. quijote, Dracula, Cervantes)" autocomplete="off">
+        <select id="g-idioma" class="buscar" aria-label="Idioma">
+          <option value="">Todos los idiomas</option>
+          <option value="es">Español</option>
+          <option value="en">Inglés</option>
+          <option value="fr">Francés</option>
+          <option value="de">Alemán</option>
+          <option value="it">Italiano</option>
+          <option value="pt">Portugués</option>
+        </select>
+        <button id="g-buscar" class="btn primary">Buscar</button>
+      </div>
+      <div id="g-estado" class="estado" hidden></div>
+      <ul id="g-lista" class="g-lista"></ul>
+    </div>
+    <div class="separador"><span>o sube tu propio archivo</span></div>
     <label id="drop" class="drop" for="archivo">
       <input id="archivo" type="file" accept=".txt,text/plain" hidden>
       <div class="drop-icon">⇪</div>

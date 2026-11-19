@@ -93,6 +93,49 @@ async function comprimir(fd, nombre) {
   }
 }
 
+/* ---------- Buscador de Project Gutenberg ---------- */
+async function buscarLibros() {
+  const q = $("#g-q").value.trim();
+  const est = $("#g-estado");
+  if (q.length < 2) return estado(est, "Escribe al menos 2 letras.", true);
+  estado(est, `<span class="spin"></span>Buscando «${esc(q)}» en Project Gutenberg…`);
+  $("#g-lista").innerHTML = "";
+  try {
+    const p = new URLSearchParams({ q, idioma: $("#g-idioma").value });
+    const r = await fetch("/api/gutenberg/buscar?" + p);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || `Error ${r.status}`);
+    if (!d.libros.length) return estado(est, "No se encontraron libros con texto plano. Prueba con otro título o autor.", true);
+    estado(est, `${fmt(d.total)} resultados · mostrando ${d.libros.length}`);
+    $("#g-lista").innerHTML = d.libros.map((b) =>
+      `<li><div class="g-info"><strong>${esc(b.titulo)}</strong>
+        <span class="muted small">${esc(b.autor)} · ${esc(b.idiomas.join(", "))} · ${fmt(b.descargas)} descargas · #${b.id}</span></div>
+        <button class="btn sm" data-id="${b.id}">Comprimir</button></li>`).join("");
+  } catch (e) {
+    estado(est, e.message, true);
+  }
+}
+$("#g-buscar").onclick = buscarLibros;
+$("#g-q").addEventListener("keydown", (e) => e.key === "Enter" && buscarLibros());
+$("#g-lista").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-id]");
+  if (!btn) return;
+  const li = btn.closest("li");
+  const titulo = li.querySelector("strong").textContent;
+  $$("#g-lista button").forEach((b) => (b.disabled = true));
+  estado($("#estado"), `<span class="spin"></span>Descargando <b>${esc(titulo)}</b> de Project Gutenberg y comprimiendo…`);
+  try {
+    const d = await postear(`/api/gutenberg/comprimir/${btn.dataset.id}`, null);
+    ultimo = d;
+    estado($("#estado"), "");
+    pintarResultados(d);
+  } catch (err) {
+    estado($("#estado"), err.message, true);
+  } finally {
+    $$("#g-lista button").forEach((b) => (b.disabled = false));
+  }
+});
+
 function pintarResultados(d) {
   const s = d.stats;
   $("#resultados").hidden = false;

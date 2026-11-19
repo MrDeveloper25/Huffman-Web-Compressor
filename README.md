@@ -15,6 +15,15 @@ Actividad de Análisis de Algoritmos sobre la técnica voraz.
 5. **Compara tamaños**: original, `.huf` (datos + cabecera), codificación de longitud fija y ZIP como referencia. También reporta la entropía de Shannon y la eficiencia del código.
 6. **Árbol de expansión mínima**: genera un grafo aleatorio o acepta aristas escritas a mano, y anima Kruskal (con Union-Find) y Prim (con cola de prioridad).
 
+## Buscar libros en Project Gutenberg
+
+En la pestaña **Comprimir** hay un buscador de libros. Usa la API pública [Gutendex](https://gutendex.com/) (metadatos de Gutenberg, sin API key). El **servidor Flask** descarga el `.txt` y lo comprime, así que no hay problemas de CORS en el navegador.
+
+| Endpoint | Qué hace |
+|---|---|
+| `GET /api/gutenberg/buscar?q=quijote&idioma=es` | Busca libros que tengan versión de texto plano |
+| `POST /api/gutenberg/comprimir/<id>` | Descarga el libro y devuelve el mismo resultado que `/api/comprimir` |
+
 ## Estructura
 
 ```

@@ -244,3 +244,14 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
   .barra { grid-template-columns: 110px 1fr 70px; }
   .buscar { width: 100%; }
 }
+
+/* ---------- buscador de Gutenberg ---------- */
+.buscador h3 { margin: 0 0 10px; font-size: 1rem; }
+.buscador-fila { display: flex; gap: 8px; flex-wrap: wrap; }
+.buscador-fila input { flex: 1 1 240px; }
+.g-lista { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; max-height: 340px; overflow: auto; }
+.g-lista li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
+.g-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.g-info strong { overflow: hidden; text-overflow: ellipsis; }
+.separador { display: flex; align-items: center; gap: 12px; margin: 18px 0 14px; color: var(--muted); font-size: .85rem; }
+.separador::before, .separador::after { content: ""; flex: 1; height: 1px; background: var(--border); }

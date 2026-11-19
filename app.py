@@ -7,11 +7,17 @@ Huffman Web Compressor — servidor Flask.
 * En local:  python app.py   ->  http://127.0.0.1:5000
 """
 
+from __future__ import annotations
+
 import base64
+import json
 import math
 import os
 import sys
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import zlib
 
 from flask import Flask, jsonify, request, send_from_directory
@@ -55,6 +61,11 @@ def api_comprimir():
     else:
         nombre = "texto_pegado.txt"
         crudo = (request.form.get("texto") or "").encode("utf-8")
+    return _comprimir_bytes(crudo, nombre)
+
+
+def _comprimir_bytes(crudo: bytes, nombre: str):
+    """Pipeline completo de Huffman sobre bytes de texto (archivo, texto pegado o libro)."""
     if not crudo:
         raise ValueError("No se recibió ningún texto.")
 
@@ -158,6 +169,77 @@ def api_descomprimir():
         texto_inicio=texto[:3000],
         texto_b64=base64.b64encode(datos).decode("ascii"),
     )
+
+
+# --------------------------------------------------------------------------- #
+#  Project Gutenberg (vía Gutendex)
+# --------------------------------------------------------------------------- #
+GUTENDEX = "https://gutendex.com/books"
+HOSTS_GUTENBERG = ("gutenberg.org", "gutendex.com")   # lista blanca anti-SSRF
+UA = {"User-Agent": "Huffman-Web-Compressor/1.0 (actividad escolar)"}
+
+
+def _http_get(url: str, limite: int | None = None, timeout: int = 20) -> bytes:
+    host = urllib.parse.urlparse(url).hostname or ""
+    if not any(host == h or host.endswith("." + h) for h in HOSTS_GUTENBERG):
+        raise ValueError("URL no permitida.")
+    req = urllib.request.Request(url, headers=UA)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            datos = r.read(limite + 1) if limite else r.read()
+    except urllib.error.HTTPError as e:
+        raise ValueError(f"Project Gutenberg respondió {e.code}.") from e
+    except (urllib.error.URLError, TimeoutError) as e:
+        raise ValueError("No se pudo conectar con Project Gutenberg. Intenta de nuevo.") from e
+    if limite and len(datos) > limite:
+        raise ValueError("Este libro supera el límite de ~4.4 MB permitido por el servidor.")
+    return datos
+
+
+def _url_texto(formatos: dict) -> str | None:
+    """Elige el enlace de texto plano (prefiere UTF-8) del diccionario `formats` de Gutendex."""
+    for tipo, url in formatos.items():
+        if tipo.startswith("text/plain") and "utf-8" in tipo.lower():
+            return url
+    for tipo, url in formatos.items():
+        if tipo.startswith("text/plain") and not url.endswith(".zip"):
+            return url
+    return None
+
+
+@app.get("/api/gutenberg/buscar")
+def gutenberg_buscar():
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        raise ValueError("Escribe al menos 2 letras para buscar.")
+    params = {"search": q}
+    idioma = (request.args.get("idioma") or "").strip()
+    if idioma:
+        params["languages"] = idioma
+    datos = json.loads(_http_get(f"{GUTENDEX}?{urllib.parse.urlencode(params)}"))
+
+    libros = []
+    for b in datos.get("results", [])[:15]:
+        if not _url_texto(b.get("formats", {})):
+            continue                      # sin versión .txt: no sirve para comprimir
+        libros.append({
+            "id": b["id"],
+            "titulo": b["title"],
+            "autor": (b["authors"][0]["name"] if b.get("authors") else "Desconocido"),
+            "idiomas": b.get("languages", []),
+            "descargas": b.get("download_count", 0),
+        })
+    return jsonify(total=datos.get("count", 0), libros=libros)
+
+
+@app.post("/api/gutenberg/comprimir/<int:libro_id>")
+def gutenberg_comprimir(libro_id: int):
+    meta = json.loads(_http_get(f"{GUTENDEX}/{libro_id}"))
+    url = _url_texto(meta.get("formats", {}))
+    if not url:
+        raise ValueError("Este libro no tiene versión de texto plano.")
+    crudo = _http_get(url, limite=MAX_BYTES)
+    return _comprimir_bytes(crudo, f"{meta['title'][:60]} (Gutenberg #{libro_id}).txt")
 
 
 # --------------------------------------------------------------------------- #
